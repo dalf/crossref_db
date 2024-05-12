@@ -1,0 +1,9 @@
+[ftp]
+host="denver.lan.text-analytics.ch"
+login="anonymous"
+password=""
+directory="/crossref"
+
+[db]
+# see https://docs.sqlalchemy.org/en/20/core/engines.html
+url="postgresql+psycopg2://crossref:crossref@localhost/crossref"

@@ -1,0 +1,36 @@
+[project]
+name = "crossref-db"
+version = "0.1.0"
+description = "Add your description here"
+authors = [
+    { name = "Alexandre Flament", email = "alex@al-f.net" }
+]
+dependencies = [
+    "ijson>=3.2.3",
+    "orjson>=3.10.3",
+    "sqlmodel>=0.0.18",
+    "tqdm>=4.66.4",
+    "psycopg2-binary>=2.9.9",
+]
+readme = "README.md"
+requires-python = ">= 3.8"
+
+[project.scripts]
+crossrefdb = 'crossref_db.__main__:main'
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+dev-dependencies = []
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/crossref_db"]
+
+[tool.ruff]
+line-length = 160
