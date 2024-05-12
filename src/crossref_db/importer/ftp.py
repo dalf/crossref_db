@@ -1,5 +1,48 @@
 import ftplib
 import time
+import threading
+import multiprocessing
+from pathlib import Path
+from tqdm import tqdm
+
+from ..config import ConfigFTP
+from ._base import Importer, File
+
+
+class FTPFile(File):
+    def done(self):
+        self.path.unlink()
+
+
+class FTPImporter(Importer):
+    def iterate(self):
+        queue = multiprocessing.Queue(16)
+        t = threading.Thread(target=self._worker, args=(queue,))
+        t.start()
+        while True:
+            file = queue.get()
+            if file is None:
+                break
+            yield FTPFile(file)
+        t.join()
+
+    def _worker(self, queue: multiprocessing.Queue):
+        ftp = FTPRetry(self.config.ftp)
+        ftppath = self.config.ftp.directory
+        filenames = ftp.nlst(ftppath)
+        filenames.sort()
+        try:
+            for filename in tqdm(filenames):
+                if filename[0] == ".":
+                    continue
+                ftp_filename = ftppath + "/" + filename
+                tmp_filename = Path(self.config.ftp.tmpdir) / filename
+                ftp.download(ftp_filename, tmp_filename)
+                queue.put(tmp_filename)
+        finally:
+            # make sure to always put(None) when the thread exit
+            # so the iterate function can exit too.
+            queue.put(None)
 
 
 class FTPRetry:
@@ -21,13 +64,13 @@ class FTPRetry:
     Warning: The current working directory is most probably `/` when the function f starts, but not always.
     """
 
-    def __init__(self, config):
+    def __init__(self, config: ConfigFTP):
         self.config = config
         self.connect()
 
     def connect(self):
-        self.ftp = ftplib.FTP(self.config["HOST"], timeout=None)
-        self.ftp.login(self.config["LOGIN"], self.config["PASSWORD"])
+        self.ftp = ftplib.FTP(self.config.host, timeout=None)
+        self.ftp.login(self.config.login, self.config.password)
 
     def call(self, func, *args, **kwargs):
         try_count = 0

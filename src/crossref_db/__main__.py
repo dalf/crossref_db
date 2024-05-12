@@ -1,48 +1,25 @@
 import logging
 import gzip
 import orjson
-import threading
 import tomllib
-from multiprocessing import Pool, Queue, set_start_method
-from tqdm import tqdm
-from pathlib import Path
+from multiprocessing import Pool, set_start_method
 
 from sqlmodel import text
+
 from .config import Config
 from .model import Paper, ReferenceTmp
 from .db import connect_db, create_db, get_session
-from .ftputil import FTPRetry
+from .importer import create_importer, File
 
 
-TMP_DIR = Path(__file__).parent.parent.parent / "tmp"
 WORKER_COUNT = 12
 
 
-def download(config: Config, queue: Queue):
-    config = {
-        "HOST": config.ftp.host,
-        "LOGIN": config.ftp.login,
-        "PASSWORD": config.ftp.password,
-    }
-    ftp = FTPRetry(config)
-    ftppath = config.ftp.directory
-    filenames = ftp.nlst(ftppath)
-    filenames.sort()
-    for filename in tqdm(filenames):
-        if filename[0] == ".":
-            continue
-        ftp_filename = ftppath + "/" + filename
-        tmp_filename = TMP_DIR / filename
-        ftp.download(ftp_filename, tmp_filename)
-        queue.put(tmp_filename)
-    queue.put(None)
-
-
-def process_delete(file: Path):
-    if not file.is_file():
+def process(file: File):
+    if not file.path.is_file():
         print(f"File {file} does not exist")
         return
-    with gzip.open(file, "rb") as f:
+    with gzip.open(file.path, "rb") as f:
         everything = orjson.loads(f.read())
         paper_list = []
         reftmp_list = []
@@ -55,22 +32,15 @@ def process_delete(file: Path):
             session.bulk_save_objects(paper_list)
             session.bulk_save_objects(reftmp_list)
             session.commit()
-    file.unlink()
+    file.done()
 
 
-def download_process_delete(config: Config):
+def import_into_db(config: Config):
     set_start_method("spawn")
-    queue = Queue(WORKER_COUNT)
-
-    t = threading.Thread(target=download, args=(config, queue))
-    t.start()
-
+    importer = create_importer(config)
     with Pool(processes=WORKER_COUNT, initializer=connect_db) as pool:
-        while True:
-            file = queue.get()
-            if file is None:
-                break
-            pool.apply_async(process_delete, (file,))
+        for file in importer.iterate():
+            pool.apply_async(process, (file,))
 
 
 def clean_db():
@@ -109,7 +79,7 @@ def main():
     connect_db(config.db.url)
     clean_db()
     create_db()
-    download_process_delete(config.ftp)
+    import_into_db(config.ftp)
     create_ref_table()
 
 

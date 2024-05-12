@@ -1,8 +1,13 @@
+# Enable one of these sections: "ftp" or "local"
 [ftp]
 host="denver.lan.text-analytics.ch"
 login="anonymous"
 password=""
 directory="/crossref"
+tmpdir="/data/tmp/crossref"
+
+# [local]
+# directory="/data/crossref"
 
 [db]
 # see https://docs.sqlalchemy.org/en/20/core/engines.html

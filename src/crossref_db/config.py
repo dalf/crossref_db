@@ -10,8 +10,14 @@ class ConfigFTP(BaseModel):
     login: str
     password: SecretStr
     directory: str
+    tmpdir: str
+
+
+class ConfigLocal(BaseModel):
+    directory: str
 
 
 class Config(BaseModel):
     db: ConfigDB
-    ftp: ConfigFTP
+    ftp: ConfigFTP | None
+    local: ConfigLocal | None
